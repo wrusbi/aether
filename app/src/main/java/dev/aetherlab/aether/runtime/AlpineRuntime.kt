@@ -333,7 +333,12 @@ class AlpineRuntime(
         val currentSignature = File(targetRoot, signatureFileName)
             .takeIf(File::isFile)
             ?.readText()
-        if (currentSignature == signature) return@withContext true
+        // The signature file sits in the guest, where the agent can edit it.
+        // Trust it only when the mirrored bytes also match the host copy.
+        if (
+            currentSignature == signature &&
+            MirrorIntegrity.mirrorMatchesSources(targetRoot, signatureFileName, directories)
+        ) return@withContext true
 
         val parent = targetRoot.parentFile
             ?: error("Unable to resolve Alpine mirror parent: $guestRootPath")

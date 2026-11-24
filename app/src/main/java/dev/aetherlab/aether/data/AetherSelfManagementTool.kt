@@ -83,7 +83,8 @@ class AetherSelfManagementTool(
         ),
         buildAetherToolDefinition(
             name = "aether_skill_manage",
-            description = "List, install, enable, disable, or remove Aether Agent Skills. Remote installs accept GitHub repository URLs or zip URLs supported by Aether.",
+            description = "List, install, disable, or remove pending Aether Agent Skills. Remote installs accept GitHub repository URLs or zip URLs supported by Aether. " +
+                "Installed Skills start disabled: only the user can enable them (Settings → Skills), and only the user can remove an enabled Skill.",
             properties = JSONObject().apply {
                 put(
                     "action",
@@ -440,11 +441,15 @@ class AetherSelfManagementTool(
             "install_remote" -> {
                 val url = arguments.optString("url").trim()
                 if (url.isBlank()) return failure("url is required for install_remote.")
-                val installed = skillManager.installSkillFromRemote(url)
+                // A Skill the agent fetched itself must not run until the user approves it.
+                val installed = skillManager.installSkillFromRemote(url, isEnabled = false)
                     .getOrElse { throwable -> return failure(throwable.message ?: "Skill install failed.") }
                 piKernelBridge.reloadSession(sessionId)
                 success(JSONObject().put("skill", installedSkillJson(installed))) {
-                    put("stdout", "Installed skill '${installed.name}'.")
+                    put(
+                        "stdout",
+                        "Installed skill '${installed.name}' as disabled. Ask the user to review and enable it in Settings → Skills.",
+                    )
                 }
             }
 
@@ -452,6 +457,12 @@ class AetherSelfManagementTool(
                 val skillId = arguments.optString("skill_id").trim()
                     .ifBlank { arguments.optString("skillId").trim() }
                 if (skillId.isBlank()) return failure("skill_id is required for remove.")
+                val target = extensionsRepository.extensionState.first().installedSkills
+                    .firstOrNull { it.id == skillId }
+                    ?: return failure("Skill '$skillId' is not installed.")
+                if (target.isEnabled) {
+                    return failure("Only the user can remove an enabled Skill. Ask the user to do it in Settings → Skills.")
+                }
                 skillManager.uninstallSkill(skillId)
                     .getOrElse { throwable -> return failure(throwable.message ?: "Skill removal failed.") }
                 piKernelBridge.reloadSession(sessionId)
@@ -466,6 +477,9 @@ class AetherSelfManagementTool(
                 if (skillId.isBlank()) return failure("skill_id is required for set_enabled.")
                 if (!arguments.has("enabled")) return failure("enabled is required for set_enabled.")
                 val enabled = arguments.optBoolean("enabled")
+                if (enabled) {
+                    return failure("Only the user can enable a Skill. Ask the user to switch it on in Settings → Skills.")
+                }
                 extensionsRepository.setSkillEnabled(skillId, enabled)
                 piKernelBridge.reloadSession(sessionId)
                 success(JSONObject().put("skill_id", skillId).put("enabled", enabled)) {

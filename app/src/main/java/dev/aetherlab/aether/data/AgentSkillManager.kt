@@ -108,6 +108,7 @@ class AgentSkillManager(
 
     suspend fun installSkillFromRemote(
         rawUrl: String,
+        isEnabled: Boolean = true,
     ): Result<InstalledSkill> = withContext(Dispatchers.IO) {
         runCatching {
             val plan = resolveRemoteDownloadPlan(rawUrl)
@@ -127,10 +128,41 @@ class AgentSkillManager(
                         ref = plan.ref,
                         subpath = plan.subpath,
                     ),
+                    isEnabled = isEnabled,
                 )
             } finally {
                 workingDirectory.deleteRecursively()
             }
+        }
+    }
+
+    /**
+     * Installs one Skill that ships inside an already vaulted plugin. The Skill
+     * starts disabled; [PluginVault] enables it when the user approves the plugin.
+     */
+    suspend fun installSkillFromPluginDirectory(
+        skillRoot: File,
+        skillId: String,
+        pluginId: String,
+        pluginName: String,
+        subpath: String,
+    ): Result<InstalledSkill> = withContext(Dispatchers.IO) {
+        runCatching {
+            val existing = extensionsRepository.extensionState.firstValue()
+                .installedSkills
+                .firstOrNull { it.id == skillId }
+            installParsedSkill(
+                sourceRoot = skillRoot,
+                source = SkillInstallSource(
+                    kind = SkillInstallKind.Plugin,
+                    label = pluginName,
+                    uri = pluginSkillSourceUri(pluginId),
+                    subpath = subpath,
+                ),
+                skillIdOverride = skillId,
+                installedAtMillis = existing?.installedAtMillis,
+                isEnabled = false,
+            )
         }
     }
 
@@ -238,7 +270,14 @@ class AgentSkillManager(
                             ),
                             skillIdOverride = id,
                             installedAtMillis = existing?.installedAtMillis,
-                            isEnabled = existing?.isEnabled ?: true,
+                            // Discovered Skills come from folders the agent can
+                            // write to. A new Skill waits, disabled, until the
+                            // user switches it on. An approved Skill keeps its
+                            // state only while its content is unchanged; edited
+                            // content needs a fresh approval.
+                            isEnabled = existing != null &&
+                                existing.checksumSha256 == checksum &&
+                                existing.isEnabled,
                         )
                     } finally {
                         if (sourceRoot != discovered.hostRoot) sourceRoot.deleteRecursively()

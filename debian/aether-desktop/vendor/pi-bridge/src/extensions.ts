@@ -91,6 +91,8 @@ export interface AetherExtensionRuntime {
 export interface AetherExtensionLoadOptions {
   disabledExtensionPaths?: string[];
   disabledPackageSources?: string[];
+  /** Mirrors `AetherExtensionDiscoveryOptions.includeWorkspaceExtensions`. */
+  includeWorkspaceExtensions?: boolean;
 }
 
 export interface AetherInstalledExtensionPackage {
@@ -186,13 +188,26 @@ function extensionEntriesInRoot(root: string): string[] {
     .flatMap((entry) => extensionEntriesAt(path.join(root, entry.name)));
 }
 
+export interface AetherExtensionDiscoveryOptions {
+  /**
+   * Also load extensions from `<cwd>/.pi/extensions`. The workspace is the
+   * folder the agent itself can write to, so anything found there may have
+   * been planted by the agent or by a repository it downloaded. Off unless the
+   * host explicitly marks the workspace as trusted.
+   */
+  includeWorkspaceExtensions?: boolean;
+}
+
 export function discoverAetherExtensionPaths(
   cwd: string,
   configuredPaths: string[] = [],
+  options: AetherExtensionDiscoveryOptions = {},
 ): string[] {
   const roots = [
     path.join(os.homedir(), ".pi", "agent", "extensions"),
-    path.join(cwd, ".pi", "extensions"),
+    ...(options.includeWorkspaceExtensions === true
+      ? [path.join(cwd, ".pi", "extensions")]
+      : []),
     path.join(os.homedir(), ".aether", "extensions"),
   ];
   const discovered = [
@@ -415,8 +430,9 @@ export async function loadAetherExtensions(
   );
   const disabledPackageSources = new Set(loadOptions.disabledPackageSources ?? []);
   const paths = [
-    ...discoverAetherExtensionPaths(cwd, configuredPaths)
-      .filter((entry) => !isPathDisabled(entry, disabledExtensionPaths)),
+    ...discoverAetherExtensionPaths(cwd, configuredPaths, {
+      includeWorkspaceExtensions: loadOptions.includeWorkspaceExtensions === true,
+    }).filter((entry) => !isPathDisabled(entry, disabledExtensionPaths)),
     ...(await discoverPackageExtensionPaths(cwd, disabledPackageSources)),
   ].filter((entry, index, entries) => entries.indexOf(entry) === index);
   const runtime = createExtensionRuntime();

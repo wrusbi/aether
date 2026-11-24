@@ -15,6 +15,7 @@ import dev.aetherlab.aether.data.LocalRuntimeId
 import dev.aetherlab.aether.data.PiExtensionStateRepository
 import dev.aetherlab.aether.data.StreamingStatus
 import dev.aetherlab.aether.data.SettingsRepository
+import dev.aetherlab.aether.runtime.WorkspaceTrustPolicy
 import dev.aetherlab.aether.termux.TermuxRuntimeOperations
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
@@ -118,7 +119,7 @@ class PiAgentRunner(
                         JSONArray(skillPaths),
                     )
                     put("workspace_directory", workspaceDirectory)
-                    put("workspace_trusted", true)
+                    put("workspace_trusted", WorkspaceTrustPolicy.TrustWorkspaceForSessions)
                     put("termux_workspace_directory", termuxWorkspaceDirectory)
                     // Pi extensions are installed in Alpine's guest home even
                     // when the selected chat runtime is Termux.

@@ -92,6 +92,7 @@ import {
   loadAetherAppExtensions,
 } from "./aether-extensions.js";
 import { bridgeDebug, bridgeDebugEnabled, bridgeDiagnostic, elapsedMillis } from "./debug.js";
+import { inspectPluginRequest } from "./plugin-bridge.js";
 import { reserveProtocolStdout, writeProtocolFrame } from "./protocol-output.js";
 
 reserveProtocolStdout();
@@ -174,6 +175,8 @@ interface AgentSessionState {
   toolSignature: string;
   extensionSignature: string;
   skillSignature: string;
+  /** Whether the workspace's own `.pi/` resources were allowed to load. */
+  workspaceTrusted: boolean;
   workspaceDirectory: string;
   termuxWorkspaceDirectory: string;
   runtime: "alpine" | "termux";
@@ -224,6 +227,8 @@ let currentExtensionLoadOptions = {
 interface NativeExtensionLoadOptions {
   disabledExtensionPaths: string[];
   disabledPackageSources: string[];
+  /** Load `<workspace>/.pi/extensions` too. Only for explicitly trusted workspaces. */
+  includeWorkspaceExtensions?: boolean;
 }
 
 interface SharedCredentialState {
@@ -2420,6 +2425,7 @@ async function resolveNativeExtensionSet(
   const discoveredPaths = discoverAetherExtensionPaths(
     workspaceDirectory,
     configuredExtensionPaths,
+    { includeWorkspaceExtensions: loadOptions.includeWorkspaceExtensions === true },
   ).filter((candidate) => !nativeExtensionPathIsDisabled(candidate, disabledPaths));
   const packagePaths = await discoverPackageExtensionPaths(
     workspaceDirectory,
@@ -2456,6 +2462,9 @@ async function createNativeAgentSession(
       {
         disabledExtensionPaths: stringArray(payload.disabled_extension_paths),
         disabledPackageSources: stringArray(payload.disabled_package_sources),
+        // Same switch Pi uses for project resources: an untrusted workspace
+        // must not be able to load code into the agent's tool registry.
+        includeWorkspaceExtensions: asBoolean(payload.workspace_trusted, false),
       },
     );
   const resourceLoader = new DefaultResourceLoader({
@@ -2487,6 +2496,7 @@ async function createNativeAgentSession(
     toolSignature: hostToolSignature(allowedHostToolDefinitions(payload.host_tools, platform)),
     extensionSignature,
     skillSignature: JSON.stringify(stringArray(payload.skill_paths).sort()),
+    workspaceTrusted: asBoolean(payload.workspace_trusted, false),
     workspaceDirectory,
     termuxWorkspaceDirectory,
     runtime,
@@ -2766,6 +2776,7 @@ async function prepareNativeAgentSession(
     {
       disabledExtensionPaths: stringArray(payload.disabled_extension_paths),
       disabledPackageSources: stringArray(payload.disabled_package_sources),
+      includeWorkspaceExtensions: asBoolean(payload.workspace_trusted, false),
     },
   );
   const skillSignature = JSON.stringify(stringArray(payload.skill_paths).sort());
@@ -3170,7 +3181,7 @@ async function reloadAllExtensionSessions(
     const { signature: extensionSignature } = await resolveNativeExtensionSet(
       state.workspaceDirectory,
       state.configuredExtensionPaths,
-      loadOptions,
+      { ...loadOptions, includeWorkspaceExtensions: state.workspaceTrusted },
     );
     const requiresRecreation = extensionSignature !== state.extensionSignature;
     const scheduled = !state.session.isIdle;
@@ -3416,6 +3427,9 @@ async function handleRequest(request: BridgeRequest): Promise<void> {
       return;
     case "list_discovered_skills":
       writeResponse(id, await listDiscoveredSkills(payload));
+      return;
+    case "inspect_plugin":
+      writeResponse(id, inspectPluginRequest(payload));
       return;
     case "install_extension_package":
       writeResponse(id, await installExtensionPackage(payload));

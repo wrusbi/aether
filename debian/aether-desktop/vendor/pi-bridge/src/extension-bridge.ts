@@ -16,6 +16,7 @@ import {
   removeExtensionPackage,
   updateExtensionPackage,
 } from "./extension-packages.js";
+import { inspectPluginRequest } from "./plugin-bridge.js";
 import { reserveProtocolStdout, writeProtocolFrame } from "./protocol-output.js";
 
 reserveProtocolStdout();
@@ -241,6 +242,9 @@ async function handleRequest(request: BridgeRequest): Promise<void> {
       return;
     case "list_extension_packages":
       writeResponse(id, await installedPackagesPayload());
+      return;
+    case "inspect_plugin":
+      writeResponse(id, inspectPluginRequest(payload));
       return;
     case "list_discovered_skills": {
       const workspaceDirectory = asString(payload.workspace_directory, process.cwd()) || process.cwd();

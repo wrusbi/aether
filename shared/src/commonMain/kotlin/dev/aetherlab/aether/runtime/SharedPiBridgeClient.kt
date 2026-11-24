@@ -179,7 +179,7 @@ class SharedPiBridgeClient(
         skillPaths: List<String> = emptyList(),
         runtime: String = "alpine",
         platform: String = "ios",
-        workspaceTrusted: Boolean = true,
+        workspaceTrusted: Boolean = WorkspaceTrustPolicy.TrustWorkspaceForSessions,
     ): JsonObject = request(
         type = "navigate_session",
         payload = buildJsonObject {
@@ -238,7 +238,7 @@ class SharedPiBridgeClient(
         type = "list_discovered_skills",
         payload = buildJsonObject {
             put("workspace_directory", workspaceDirectory)
-            put("workspace_trusted", true)
+            put("workspace_trusted", WorkspaceTrustPolicy.DiscoveryReadsWorkspace)
             put("skill_paths", kotlinx.serialization.json.JsonArray(skillPaths.map(::JsonPrimitive)))
         },
         timeoutMillis = 30_000,

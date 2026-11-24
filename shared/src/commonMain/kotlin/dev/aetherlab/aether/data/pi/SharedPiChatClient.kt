@@ -9,6 +9,7 @@ import dev.aetherlab.aether.data.normalizeLlmUserAgent
 import dev.aetherlab.aether.data.platformDefaultSystemPrompt
 import dev.aetherlab.aether.data.platformRandomUuid
 import dev.aetherlab.aether.runtime.SharedPiBridgeClient
+import dev.aetherlab.aether.runtime.WorkspaceTrustPolicy
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
@@ -193,8 +194,9 @@ class SharedPiChatClient(
             put("termux_workspace_directory", workspaceDirectory)
             put("runtime", "alpine")
             put("platform", "ios")
-            // Aether owns this workspace; allow Pi to discover project Skills.
-            put("workspace_trusted", true)
+            // The workspace is writable by the agent, so Pi must not auto-load
+            // project Skills/extensions from it. Approved Skills arrive via skill_paths.
+            put("workspace_trusted", WorkspaceTrustPolicy.TrustWorkspaceForSessions)
             put("chrome_enabled", false)
             put("skill_paths", buildJsonArray {
                 skillPaths.distinct().forEach { add(JsonPrimitive(it)) }

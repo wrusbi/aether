@@ -172,11 +172,18 @@ class SharedAgentManagementTools(
             "install_remote" -> {
                 val url = arguments.string("url")
                 require(url.isNotBlank()) { "url is required for install_remote." }
-                skillManager.installRemote(url)
+                val installed = skillManager.installRemote(url)
+                // A Skill the agent fetched itself must not run until the user approves it.
+                skillManager.setEnabled(installed.id, false)
             }
             "remove" -> {
                 val skillId = arguments.string("skill_id")
                 require(skillId.isNotBlank()) { "skill_id is required for remove." }
+                val target = skillManager.list().firstOrNull { it.id == skillId }
+                    ?: error("Skill '$skillId' is not installed.")
+                check(!target.isEnabled) {
+                    "Only the user can remove an enabled Skill. Ask the user to do it in Settings > Skills."
+                }
                 skillManager.remove(skillId)
             }
             "set_enabled" -> {
@@ -184,6 +191,9 @@ class SharedAgentManagementTools(
                 val enabled = arguments.booleanOrNull("enabled")
                 require(skillId.isNotBlank() && enabled != null) {
                     "skill_id and enabled are required for set_enabled."
+                }
+                check(!enabled) {
+                    "Only the user can enable a Skill. Ask the user to switch it on in Settings > Skills."
                 }
                 skillManager.setEnabled(skillId, enabled)
             }
@@ -270,7 +280,8 @@ private fun kotlinx.serialization.json.JsonArrayBuilder.addSelfManagementDefinit
     ))
     add(agentToolDefinition(
         "aether_skill_manage",
-        "List, remotely install, enable, disable, or remove Aether Agent Skills.",
+        "List, remotely install, disable, or remove pending Aether Agent Skills. Installed Skills start disabled: " +
+            "only the user can enable them (Settings > Skills), and only the user can remove an enabled Skill.",
         "sequential",
         listOf("action"),
         mapOf(

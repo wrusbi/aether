@@ -278,6 +278,7 @@ import dev.aetherlab.aether.runtime.RuntimePiBridgeTransport
 import dev.aetherlab.aether.runtime.RuntimeSetupProgress
 import dev.aetherlab.aether.runtime.PiBridgeSetupPhase
 import dev.aetherlab.aether.runtime.SharedPiBridgeClient
+import dev.aetherlab.aether.runtime.WorkspaceTrustPolicy
 import dev.aetherlab.aether.shared.resources.Res
 import dev.aetherlab.aether.shared.resources.*
 import dev.aetherlab.aether.ui.theme.AetherBackground
@@ -2008,7 +2009,7 @@ fun IosComposeApp(
                             systemPrompt = sharedAppSettings.systemPrompt,
                             runtime = "alpine",
                             platform = "ios",
-                            workspaceTrusted = true,
+                            workspaceTrusted = WorkspaceTrustPolicy.TrustWorkspaceForSessions,
                         )
                     }
                 }

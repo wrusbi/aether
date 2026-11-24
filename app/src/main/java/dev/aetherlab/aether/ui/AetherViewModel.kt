@@ -109,6 +109,7 @@ import dev.aetherlab.aether.runtime.AlpineSetupActivity
 import dev.aetherlab.aether.runtime.LocalRuntimeIssue
 import dev.aetherlab.aether.runtime.LocalRuntimeSetupState
 import dev.aetherlab.aether.runtime.RuntimeShellTool
+import dev.aetherlab.aether.runtime.WorkspaceTrustPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -2842,7 +2843,7 @@ class AetherViewModel(
                     put("termux_workspace_directory", workspaceDirectory)
                     put("runtime", metadata?.runtime ?: settings.defaultRuntimeId?.storageValue.orEmpty())
                     put("platform", "android")
-                    put("workspace_trusted", true)
+                    put("workspace_trusted", WorkspaceTrustPolicy.TrustWorkspaceForSessions)
                     val modelKey = thinkingCatalogKey(settings.piProviderId, settings.modelId)
                     val thinkingLevelMap = _uiState.value.thinkingLevelClampsByProviderModel[modelKey].orEmpty()
                     val isReasoningModel = modelKey in _uiState.value.reasoningModels

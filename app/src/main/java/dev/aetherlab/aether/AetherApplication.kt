@@ -10,6 +10,7 @@ import com.posthog.android.PostHogAndroidConfig
 import dev.aetherlab.aether.data.AgentExtensionsRepository
 import dev.aetherlab.aether.data.AlpineChromeController
 import dev.aetherlab.aether.data.AgentModeController
+import dev.aetherlab.aether.data.AgentPluginSkillStore
 import dev.aetherlab.aether.data.AgentSkillManager
 import dev.aetherlab.aether.data.AetherAppExtensionManager
 import dev.aetherlab.aether.data.AetherModKernel
@@ -19,6 +20,7 @@ import dev.aetherlab.aether.data.ChatRepository
 import dev.aetherlab.aether.data.DeviceRootController
 import dev.aetherlab.aether.data.PiExtensionManager
 import dev.aetherlab.aether.data.PiExtensionStateRepository
+import dev.aetherlab.aether.data.PluginVault
 import dev.aetherlab.aether.data.RootSetupController
 import dev.aetherlab.aether.data.RuntimeWorkspaceFileBridge
 import dev.aetherlab.aether.data.ChatStateStore
@@ -40,6 +42,7 @@ import dev.aetherlab.aether.runtime.TermuxRuntime
 import dev.aetherlab.aether.termux.TermuxBashTool
 import dev.aetherlab.aether.termux.TermuxRuntimeOperations
 import kotlinx.coroutines.CoroutineExceptionHandler
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -183,6 +186,10 @@ class AetherAppRuntime(
         context = application,
         extensionsRepository = extensionsRepository,
     )
+    val pluginVault = PluginVault(
+        rootDirectory = File(application.filesDir, "plugins"),
+        skills = AgentPluginSkillStore(skillManager, extensionsRepository),
+    )
     val piExtensionManager = PiExtensionManager(
         context = application,
         alpineRuntime = alpineRuntime,
@@ -296,6 +303,27 @@ class AetherAppRuntime(
                     throwable = throwable,
                 )
             }
+        }
+        appScope.launch {
+            // Plugins whose files changed since install are switched off and flagged.
+            runCatching { pluginVault.verifyAll() }
+                .onSuccess { quarantined ->
+                    quarantined.forEach { plugin ->
+                        diagnosticLogger.event(
+                            category = "plugins",
+                            event = "plugin_quarantined",
+                            level = "warn",
+                            details = mapOf("plugin_id" to plugin.id),
+                        )
+                    }
+                }
+                .onFailure { throwable ->
+                    diagnosticLogger.exception(
+                        category = "plugins",
+                        event = "plugin_verify_failed",
+                        throwable = throwable,
+                    )
+                }
         }
         appScope.launch {
             if (settingsRepository.settings.first().privacyPolicyAccepted) {

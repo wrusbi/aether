@@ -4,6 +4,7 @@ import dev.aetherlab.aether.data.PiExtensionLoadOptions
 import dev.aetherlab.aether.data.AetherDiagnosticLogger
 import dev.aetherlab.aether.data.DiagnosticRedactor
 import dev.aetherlab.aether.runtime.AlpineRuntime
+import dev.aetherlab.aether.runtime.WorkspaceTrustPolicy
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -301,7 +302,19 @@ class PiKernelBridge(
         type = "list_discovered_skills",
         payload = JSONObject()
             .put("workspace_directory", workspaceDirectory)
-            .put("workspace_trusted", true),
+            .put("workspace_trusted", WorkspaceTrustPolicy.DiscoveryReadsWorkspace),
+        timeoutMillis = PiBridgeRequestTimeoutMillis,
+        abortOnCancellation = false,
+    )
+
+    /**
+     * Describes a plugin folder that exists inside the guest (Claude Code, Codex
+     * or portable layout) and returns its content digest. Nothing is executed.
+     * Parse the response with `parsePluginInspection`.
+     */
+    suspend fun inspectPlugin(guestPluginRoot: String): JSONObject = request(
+        type = "inspect_plugin",
+        payload = JSONObject().put("plugin_root", guestPluginRoot),
         timeoutMillis = PiBridgeRequestTimeoutMillis,
         abortOnCancellation = false,
     )

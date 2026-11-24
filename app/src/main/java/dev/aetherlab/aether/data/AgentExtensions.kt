@@ -47,6 +47,7 @@ enum class SkillInstallKind(
     GitHub("github"),
     PiPackage("pi_package"),
     PiDiscovered("pi_discovered"),
+    Plugin("plugin"),
     BuiltIn("builtin");
 
     companion object {

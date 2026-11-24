@@ -192,6 +192,9 @@ class SharedSkillManager(
                 }
                 .distinctBy(SharedDiscoveredSkillSource::filePath)
             val desiredSources = discovered.associateBy({ sharedDiscoveredSkillId(it.filePath) }, { it.filePath })
+            // Discovered Skills come from folders the agent can write to, so a
+            // new or edited one must be switched on by the user before use.
+            val needsApproval = mutableSetOf<String>()
 
             discovered.forEach { source ->
                 if (source.filePath in ignored) return@forEach
@@ -212,14 +215,24 @@ class SharedSkillManager(
                     validateSharedSkillTree(staging)
                     validateSharedSkillDocument(runtime.fileSystem.read("$staging/SKILL.md").decodeToString())
                     val destination = "$skillsRoot/$id"
+                    val comparison = bash(
+                        "if [ -d ${quote(destination)} ] && diff -qr ${quote(staging)} ${quote(destination)} >/dev/null 2>&1; " +
+                            "then echo same; else echo changed; fi",
+                    )
+                    val unchanged = !comparison.isError && comparison.stdout().trim() == "same"
                     val replace = bash(
                         "if [ -d ${quote(destination)} ] && diff -qr ${quote(staging)} ${quote(destination)} >/dev/null 2>&1; " +
                             "then rm -rf ${quote(staging)}; else rm -rf ${quote(destination)} && mv ${quote(staging)} ${quote(destination)}; fi",
                     )
                     check(!replace.isError) { replace.errorText().ifBlank { "Unable to synchronize discovered Skill." } }
+                    if (!unchanged) needsApproval += id
                 } catch (_: Throwable) {
                     runCatching { runtime.fileSystem.remove(staging, recursive = true) }
                 }
+            }
+
+            if (needsApproval.isNotEmpty()) {
+                writeEnabledState(readEnabledState() + needsApproval.associateWith { false })
             }
 
             val staleIds = existingSources.keys - desiredSources.keys
